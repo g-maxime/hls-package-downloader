@@ -17,6 +17,7 @@ import logging
 import os
 import threading
 import urllib.request
+import urllib.error
 
 _auth_header = ""
 _bytes_downloaded = 0
@@ -64,6 +65,11 @@ def fetch(url: tuple, out_dir: str) -> None:
         else:
             logging.debug(f"Downloading to {out_path}")
         data = read_data_from_url(url)
+
+        if data is None:
+           logging.info(f"Unable to download file {url.geturl()}")
+           return
+
         write_file(out_path, data)
         if is_playlist:
             parse_playlist(url, out_dir, data)
@@ -151,11 +157,18 @@ def read_data_from_url(url: tuple) -> bytes:
     headers = {}
     if len(_auth_header) > 0:
         headers["authorization"] = _auth_header
-    request = urllib.request.Request(url=url.geturl(), headers=headers)
-    with urllib.request.urlopen(request) as response:
-        data = response.read()
-    return data
 
+    request = urllib.request.Request(url=url.geturl(), headers=headers)
+
+    for retry in range(0, 2):
+        try:
+            response = urllib.request.urlopen(request)
+            return response.read()
+        except:
+            if retry < 2:
+                continue
+            return None
+    return None
 
 def write_file(path: str, data: bytes) -> None:
     global _bytes_downloaded
